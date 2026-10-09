@@ -1,25 +1,25 @@
-name: Linux x86_64 mpv
+name: Linux x86_64 glibc 2.28 mpv
 
 on:
   pull_request:
     paths:
       - "build-config/**"
-      - "builders/debian-11.Dockerfile"
-      - "targets/linux-x86_64/**"
+      - "builders/debian-10.Dockerfile"
+      - "targets/linux-x86_64-glibc-2.28/**"
       - "scripts/**"
       - "fixtures/**"
-      - ".github/workflows/linux-x86_64.yml"
+      - ".github/workflows/linux-x86_64-glibc-2.28.yml"
 
   push:
     branches:
       - main
     paths:
       - "build-config/**"
-      - "builders/debian-11.Dockerfile"
-      - "targets/linux-x86_64/**"
+      - "builders/debian-10.Dockerfile"
+      - "targets/linux-x86_64-glibc-2.28/**"
       - "scripts/**"
       - "fixtures/**"
-      - ".github/workflows/linux-x86_64.yml"
+      - ".github/workflows/linux-x86_64-glibc-2.28.yml"
 
   workflow_dispatch:
 
@@ -48,15 +48,15 @@ jobs:
           set -euo pipefail
 
           unset PORTABILITY_IMAGES DOCKER_PLATFORM
-          source targets/linux-x86_64/target.env
+          source targets/linux-x86_64-glibc-2.28/target.env
 
           IFS=$' \t\n' read -r -a portability_images <<< "${PORTABILITY_IMAGES//$'\n'/ }"
           for image in "${portability_images[@]}"; do
               docker pull --platform "$DOCKER_PLATFORM" "$image"
           done
 
-      - name: Build, package and verify linux-x86_64
-        run: ./scripts/build-package-verify.sh linux-x86_64
+      - name: Build, package and verify linux-x86_64-glibc-2.28
+        run: ./scripts/build-package-verify.sh linux-x86_64-glibc-2.28
 
       - name: Resolve verified archive
         id: package
@@ -65,7 +65,7 @@ jobs:
           set -euo pipefail
           shopt -s nullglob dotglob
 
-          archives=(out/linux-x86_64/artifacts/*.tar.zst)
+          archives=(out/linux-x86_64-glibc-2.28/artifacts/*.tar.zst)
           if [[ ${#archives[@]} -ne 1 ]]; then
               printf 'Expected exactly one packaged archive.\n' >&2
               exit 1
@@ -83,10 +83,10 @@ jobs:
         id: upload
         uses: actions/upload-artifact@v7
         with:
-          name: linux-x86_64-${{ github.run_id }}-${{ github.run_attempt }}
+          name: linux-x86_64-glibc-2.28-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
-            out/linux-x86_64/artifacts/${{ steps.package.outputs.archive }}
-            out/linux-x86_64/artifacts/${{ steps.package.outputs.archive }}.sha256
+            out/linux-x86_64-glibc-2.28/artifacts/${{ steps.package.outputs.archive }}
+            out/linux-x86_64-glibc-2.28/artifacts/${{ steps.package.outputs.archive }}.sha256
           if-no-files-found: error
           compression-level: 0
 
@@ -101,9 +101,9 @@ jobs:
 
           # Includes dist and the original archive/checksum; build scratch space
           # is already removed by build-target.sh's EXIT trap.
-          rm -rf -- out/linux-x86_64
-          [[ ! -e out/linux-x86_64 && ! -L out/linux-x86_64 ]]
-          download_dir="$(mktemp -d "$RUNNER_TEMP/linux-x86_64-download.XXXXXXXX")"
+          rm -rf -- out/linux-x86_64-glibc-2.28
+          [[ ! -e out/linux-x86_64-glibc-2.28 && ! -L out/linux-x86_64-glibc-2.28 ]]
+          download_dir="$(mktemp -d "$RUNNER_TEMP/linux-x86_64-glibc-2.28-download.XXXXXXXX")"
           printf 'directory=%s\n' "$download_dir" >> "$GITHUB_OUTPUT"
 
       - name: Download just-uploaded artifact
@@ -112,7 +112,7 @@ jobs:
           artifact-ids: ${{ steps.upload.outputs.artifact-id }}
           path: ${{ steps.redownload.outputs.directory }}
 
-      - name: Verify downloaded linux-x86_64 archive
+      - name: Verify downloaded linux-x86_64-glibc-2.28 archive
         shell: bash
         env:
           DOWNLOAD_DIR: ${{ steps.redownload.outputs.directory }}
@@ -121,7 +121,7 @@ jobs:
           set -euo pipefail
           shopt -s nullglob dotglob
 
-          [[ ! -e out/linux-x86_64 && ! -L out/linux-x86_64 ]]
+          [[ ! -e out/linux-x86_64-glibc-2.28 && ! -L out/linux-x86_64-glibc-2.28 ]]
           entries=("$DOWNLOAD_DIR/"*)
           archive="$DOWNLOAD_DIR/$ARCHIVE_NAME"
           if [[ ${#entries[@]} -ne 2 || ! -f "$archive" || -L "$archive" ||
@@ -129,7 +129,7 @@ jobs:
               printf 'Expected only the downloaded archive and its matching checksum.\n' >&2
               exit 1
           fi
-          ./scripts/verify-artifact.sh linux-x86_64 "$archive"
+          ./scripts/verify-artifact.sh linux-x86_64-glibc-2.28 "$archive"
 
   publish-candidate:
     needs: build-package-verify
@@ -161,16 +161,16 @@ jobs:
           [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
 
           unset SOURCE_ENV ARTIFACT_TARGET MPV_VERSION
-          source targets/linux-x86_64/target.env
+          source targets/linux-x86_64-glibc-2.28/target.env
           source "$SOURCE_ENV"
           [[ "$MPV_VERSION" =~ ^[a-zA-Z0-9][a-zA-Z0-9._+-]*$ ]]
           [[ "$ARTIFACT_TARGET" =~ ^[a-z0-9][a-z0-9._-]*$ ]]
           short_sha="${GITHUB_SHA:0:12}"
-          tag="mpv-${MPV_VERSION}-rev.${short_sha}"
+          tag="mpv-${MPV_VERSION}-${ARTIFACT_TARGET}-rev.${short_sha}"
           git check-ref-format "refs/tags/$tag"
           [[ "$ARCHIVE_NAME" == "mpv-${MPV_VERSION}-${ARTIFACT_TARGET}-rev.${short_sha}.tar.zst" ]]
 
-          download_dir="$(mktemp -d "$RUNNER_TEMP/linux-x86_64-candidate.XXXXXXXX")"
+          download_dir="$(mktemp -d "$RUNNER_TEMP/linux-x86_64-glibc-2.28-candidate.XXXXXXXX")"
           printf 'tag=%s\ndirectory=%s\n' "$tag" "$download_dir" >> "$GITHUB_OUTPUT"
 
       - name: Download exact verified Actions artifact
@@ -292,7 +292,7 @@ jobs:
           set -euo pipefail
 
           unset PORTABILITY_IMAGES DOCKER_PLATFORM
-          source targets/linux-x86_64/target.env
+          source targets/linux-x86_64-glibc-2.28/target.env
 
           IFS=$' \t\n' read -r -a portability_images <<< "${PORTABILITY_IMAGES//$'\n'/ }"
           for image in "${portability_images[@]}"; do
@@ -320,7 +320,7 @@ jobs:
                   all(.assets[]; .state == "uploaded" and .size > 0)
               ' > /dev/null
 
-          download_dir="$(mktemp -d "$RUNNER_TEMP/linux-x86_64-release.XXXXXXXX")"
+          download_dir="$(mktemp -d "$RUNNER_TEMP/linux-x86_64-glibc-2.28-release.XXXXXXXX")"
           gh release download "$CANDIDATE_TAG" --repo "$GITHUB_REPOSITORY" \
               --pattern "$ARCHIVE_NAME" --pattern "$ARCHIVE_NAME.sha256" --dir "$download_dir"
           entries=("$download_dir/"*)
@@ -332,4 +332,4 @@ jobs:
 
           # Level 3: the full verifier starts with strict SHA-256 verification,
           # then checks the archive, ELF, runtime, media, HTTPS, IPC and portability.
-          ./scripts/verify-artifact.sh linux-x86_64 "$archive"
+          ./scripts/verify-artifact.sh linux-x86_64-glibc-2.28 "$archive"
